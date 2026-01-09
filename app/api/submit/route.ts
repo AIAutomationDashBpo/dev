@@ -6,11 +6,11 @@ function isProbablyE164(phone: string) {
 
 export async function POST(req: Request) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
-  const secret = process.env.N8N_WEBHOOK_SECRET;
 
-  if (!webhookUrl || !secret) {
+  // Only require the webhook URL for now (no secret)
+  if (!webhookUrl) {
     return NextResponse.json(
-      { error: "Server not configured (missing N8N webhook settings)." },
+      { error: "Server not configured (missing N8N_WEBHOOK_URL)." },
       { status: 500 }
     );
   }
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  // Minimal guardrails here. n8n should still validate properly.
+  // Minimal guardrails
   const phone = String(body?.phone ?? "").trim();
   const model = String(body?.model_number ?? body?.model ?? "").trim();
   const serial = String(body?.serial_number ?? body?.serial ?? "").trim();
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
   if (!isProbablyE164(phone)) {
     return NextResponse.json(
       { error: "Phone number format looks invalid." },
@@ -45,7 +46,6 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-recall-secret": secret,
       },
       body: JSON.stringify(body),
     });
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
     if (!upstream.ok) {
       return NextResponse.json(
-        { error: data?.error || "Workflow failed." },
+        { error: data?.error || "Workflow failed.", status: upstream.status, details: data },
         { status: upstream.status }
       );
     }
