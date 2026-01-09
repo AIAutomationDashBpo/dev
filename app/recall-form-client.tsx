@@ -34,7 +34,7 @@ function isPhone(s: string) {
   return /^\+?[1-9]\d{7,14}$/.test(s);
 }
 
-export default function Page() {
+export default function RecallFormClient() {
   const params = useSearchParams();
 
   const prefill = useMemo(() => {
@@ -67,12 +67,12 @@ export default function Page() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    // Prefill the 3 fields from the SMS link
+    // Normalize prefill so the agent’s values land cleanly
     setForm((prev) => ({
       ...prev,
-      phone: prefill.phone,
-      model: prefill.model,
-      serial: prefill.serial,
+      phone: (prefill.phone ?? "").trim(),
+      model: (prefill.model ?? "").trim().toUpperCase(),
+      serial: (prefill.serial ?? "").trim().toUpperCase(),
     }));
   }, [prefill.phone, prefill.model, prefill.serial]);
 
@@ -94,7 +94,6 @@ export default function Page() {
     }
     if (normalize(form.state).length !== 2) return "State must be a 2-letter code (example: TX).";
     if (!form.consent) return "Consent is required to submit.";
-
     return null;
   }
 
@@ -110,7 +109,7 @@ export default function Page() {
       return;
     }
 
-    // Normalize payload (next step: POST to /api/submit which forwards to n8n)
+    // Normalize payload (this is what will be sent to n8n)
     const payload = {
       phone: normalize(form.phone),
       model_number: normalize(form.model).toUpperCase(),
@@ -133,11 +132,22 @@ export default function Page() {
     try {
       console.log("FORM SUBMISSION PAYLOAD:", payload);
 
-      // Simulate success for now
-      await new Promise((r) => setTimeout(r, 400));
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setStatus("error");
+        setMsg(data?.error || "Submission failed. Please try again.");
+        return;
+      }
 
       setStatus("success");
-      setMsg("Submission received. You may now close this page.");
+      setMsg(data?.message || "Submission received. You may now close this page.");
     } catch {
       setStatus("error");
       setMsg("Something went wrong. Please try again.");
@@ -298,9 +308,7 @@ export default function Page() {
                 />
               </label>
 
-              <p className="help">
-                Prefilled values come from the SMS link. Please confirm they are correct.
-              </p>
+              <p className="help">Prefilled values come from the SMS link. Please confirm they are correct.</p>
             </section>
 
             <label className="checkRow">
